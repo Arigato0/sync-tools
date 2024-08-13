@@ -1,4 +1,4 @@
-package commands
+package cmds
 
 import (
 	"bufio"
@@ -16,11 +16,27 @@ const (
 	ARGT_BOOL
 )
 
+const (
+	_RESET  = "\033[0m"
+	RED     = "\033[31m"
+	GREEN   = "\033[32m"
+	YELLOW  = "\033[33m"
+	BLUE    = "\033[34m"
+	MAGENTA = "\033[35m"
+	CYAN    = "\033[36m"
+	GRAY    = "\033[37m"
+	WHITE   = "\033[97m"
+)
+
+func ColorAs(color string, str string) string {
+	return color + str + _RESET
+}
+
 type Context struct {
 	Args []any
 }
 
-type CommandCallback func(ctx *Context) int
+type CommandCallback func(ctx *Context)
 
 // nclip add hello
 // nclip add_file file_path
@@ -35,14 +51,18 @@ type Command struct {
 }
 
 type CommandHandler struct {
-	AppName  string
-	cmdMap   map[string]Command
-	aliasMap map[string]*Command
+	AppName      string
+	AppNameColor string
+	QuitCommand  string
+	cmdMap       map[string]Command
+	aliasMap     map[string]*Command
 }
 
 func NewCommandHandler() *CommandHandler {
 	handler := CommandHandler{}
 
+	handler.QuitCommand = "quit"
+	handler.AppNameColor = GREEN
 	handler.cmdMap = make(map[string]Command)
 	handler.aliasMap = make(map[string]*Command)
 
@@ -50,20 +70,20 @@ func NewCommandHandler() *CommandHandler {
 		Alias:       "h",
 		Description: "Displays a list of all commands or a single command if given as an argument",
 		ArgTypes:    []int{ARGT_STRING},
-		Callback: func(ctx *Context) int {
+		Callback: func(ctx *Context) {
 			if len(ctx.Args) > 0 {
 				name := ctx.Args[0].(string)
-				cmd, exists := handler.cmdMap[name]
+				cmd := handler.FindCommand(name)
 
-				if exists {
-					fmt.Println(CommandString(name, &cmd))
-					return 1
+				if cmd != nil {
+					fmt.Println(CommandString(name, cmd))
+					return
 				}
 			}
 
 			handler.ShowHelp()
 
-			return 1
+			return
 		},
 	})
 
@@ -172,24 +192,28 @@ func (handler *CommandHandler) Exec(args []string) error {
 
 	ctx.Args = make([]any, argLen)
 
-	for i, argt := range cmd.ArgTypes {
-
-		if i >= argLen {
-			break
-		}
+	for i, arg := range args {
 
 		var value any
 		var err error
 
+		argt := -1
+
+		if argtLen > 0 && i < argtLen {
+			argt = cmd.ArgTypes[i]
+		}
+
 		switch argt {
+		case ARGT_INT:
+			value, err = strconv.Atoi(arg)
+		case ARGT_BOOL:
+			value, err = strconv.ParseBool(arg)
 		case ARGT_STRING:
 			fallthrough
 		case ARGT_ANY:
-			value = args[i]
-		case ARGT_INT:
-			value, err = strconv.Atoi(args[i])
-		case ARGT_BOOL:
-			value, err = strconv.ParseBool(args[i])
+			fallthrough
+		default:
+			value = arg
 		}
 
 		if err != nil {
@@ -259,7 +283,7 @@ func ParseArgs(str string) ([]string, error) {
 
 func (handler *CommandHandler) ExecFromStdin() bool {
 
-	fmt.Printf("[%s]$ ", handler.AppName)
+	fmt.Printf("[%s]$ ", ColorAs(handler.AppNameColor, handler.AppName))
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -270,6 +294,10 @@ func (handler *CommandHandler) ExecFromStdin() bool {
 	}
 
 	name = strings.Trim(name, "\n ")
+
+	if name == handler.QuitCommand {
+		return false
+	}
 
 	spaceIndex := strings.Index(name, " ")
 
