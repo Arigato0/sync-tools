@@ -35,6 +35,7 @@ type Command struct {
 }
 
 type CommandHandler struct {
+	AppName  string
 	cmdMap   map[string]Command
 	aliasMap map[string]*Command
 }
@@ -214,7 +215,52 @@ func (cmdHandler *CommandHandler) Register(name string, command Command) *Comman
 	return cmdHandler
 }
 
+func ParseArgs(str string) ([]string, error) {
+	parts := strings.Split(str, " ")
+	args := make([]string, 0, len(parts))
+
+	for i := 0; i < len(parts); i++ {
+		part := parts[i]
+
+		if strings.HasPrefix(part, "\"") || strings.HasPrefix(part, "'") {
+
+			startByte := part[0]
+
+			builder := strings.Builder{}
+
+			part = part[1:]
+
+			for !strings.HasSuffix(part, string(startByte)) {
+
+				builder.WriteString(part + " ")
+
+				i++
+
+				if i >= len(parts) {
+					return nil, errors.New("unclosed string")
+				}
+
+				part = parts[i]
+			}
+
+			part = part[:len(part)-1]
+			part = strings.TrimRight(part, " ")
+
+			builder.WriteString(part)
+
+			part = builder.String()
+		}
+
+		args = append(args, part)
+	}
+
+	return args, nil
+}
+
 func (handler *CommandHandler) ExecFromStdin() bool {
+
+	fmt.Printf("[%s]$ ", handler.AppName)
+
 	reader := bufio.NewReader(os.Stdin)
 
 	name, err := reader.ReadString('\n')
@@ -234,9 +280,20 @@ func (handler *CommandHandler) ExecFromStdin() bool {
 		name = name[:spaceIndex]
 	}
 
-	fmt.Println(rawArgs)
+	args := []string{name}
 
-	err = handler.Exec([]string{name})
+	if rawArgs != "" {
+		parsed, err := ParseArgs(rawArgs)
+
+		if err != nil {
+			fmt.Println(err.Error())
+			return true
+		}
+
+		args = append(args, parsed...)
+	}
+
+	err = handler.Exec(args)
 
 	if err != nil {
 		fmt.Println(err.Error())

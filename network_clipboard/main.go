@@ -21,6 +21,8 @@ func main() {
 
 	cmdHandler := commands.NewCommandHandler()
 
+	cmdHandler.AppName = "nclip"
+
 	cmdHandler.Register("test", commands.Command{
 		Description: "A test command",
 		MinimumArgs: 2,
@@ -36,9 +38,6 @@ func main() {
 		return
 	}
 
-	shouldRun := true
-
-	for shouldRun {
-		shouldRun = cmdHandler.ExecFromStdin()
+	for cmdHandler.ExecFromStdin() {
 	}
 }
