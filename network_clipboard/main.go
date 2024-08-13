@@ -35,6 +35,7 @@ func main() {
 	}).Register("add", cmds.Command{
 		Alias:       "a",
 		Description: "Adds the arguments or the top system clipboard entry to the clients nclip database",
+		ArgTypes:    []int{cmds.ARGT_ARRAY},
 		Callback: func(ctx *cmds.Context) {
 
 			if len(ctx.Args) == 0 {

@@ -14,6 +14,7 @@ const (
 	ARGT_INT
 	ARGT_STRING
 	ARGT_BOOL
+	ARGT_ARRAY
 )
 
 const (
@@ -100,6 +101,8 @@ func ArgtToString(argt int) string {
 		return "string"
 	case ARGT_INT:
 		return "integer"
+	case ARGT_ARRAY:
+		return "string..."
 	default:
 		return "Unknown"
 	}
@@ -167,30 +170,17 @@ func (handler *CommandHandler) FindCommand(name string) *Command {
 	return &cmd
 }
 
-func (handler *CommandHandler) Exec(args []string) error {
-
-	if len(args) == 0 {
-		return errors.New("expected args to be greater than 0")
-	}
-
-	cmd := handler.FindCommand(args[0])
-
-	if cmd == nil {
-		return fmt.Errorf("command '%s' does not exist", args[0])
-	}
-
-	args = args[1:]
-
-	argLen := len(args)
+func createArgs(args []string, cmd *Command) ([]any, error) {
+	out := make([]any, len(args))
 	argtLen := len(cmd.ArgTypes)
 
-	if argLen < int(cmd.MinimumArgs) && argLen != argtLen {
-		return fmt.Errorf("expected %d args but got %d", cmd.MinimumArgs, argLen)
+	if argtLen > 0 && cmd.ArgTypes[0] == ARGT_ARRAY {
+		for i, arg := range args {
+			out[i] = arg
+		}
+
+		return out, nil
 	}
-
-	ctx := Context{}
-
-	ctx.Args = make([]any, argLen)
 
 	for i, arg := range args {
 
@@ -217,10 +207,44 @@ func (handler *CommandHandler) Exec(args []string) error {
 		}
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		ctx.Args[i] = value
+		out[i] = value
+	}
+
+	return out, nil
+}
+
+func (handler *CommandHandler) Exec(args []string) error {
+
+	if len(args) == 0 {
+		return errors.New("expected args to be greater than 0")
+	}
+
+	cmd := handler.FindCommand(args[0])
+
+	if cmd == nil {
+		return fmt.Errorf("command '%s' does not exist", args[0])
+	}
+
+	args = args[1:]
+
+	argLen := len(args)
+	argtLen := len(cmd.ArgTypes)
+
+	if argLen < int(cmd.MinimumArgs) && argLen != argtLen {
+		return fmt.Errorf("expected %d args but got %d", cmd.MinimumArgs, argLen)
+	}
+
+	finalArgs, err := createArgs(args, cmd)
+
+	if err != nil {
+		return err
+	}
+
+	ctx := Context{
+		Args: finalArgs,
 	}
 
 	cmd.Callback(&ctx)
