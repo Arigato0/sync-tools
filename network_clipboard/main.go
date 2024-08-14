@@ -39,6 +39,11 @@ func main() {
 		MinimumArgs: 1,
 		ArgTypes:    []int{cmds.ARGT_STRING},
 		Callback:    AddFileCommand,
+	}).Register("view", cmds.Command{
+		Alias:       "v",
+		Description: "view all nclip entries either on the local machine if no arguments are given or on a clients machine if given as the first argument",
+		ArgTypes:    []int{cmds.ARGT_STRING},
+		Callback:    ViewCommand,
 	})
 
 	if len(os.Args[1:]) > 0 {

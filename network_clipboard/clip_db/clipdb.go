@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const NCLIP_ENTRY_EXT = ".clip_entry"
+
 const (
 	TYPE_TEXT = iota
 	TYPE_FILE
@@ -34,23 +36,23 @@ type Entry struct {
 	Type int
 	// if the type is of a file or dir it will be stored here otherwise empty
 	Filename string
-	// date of when the entry was added mostly used for sorting
-	Date time.Time
-	// metadata specific to the type
-	MetaData map[string]any
+	// time of when the entry was added mostly used for sorting
+	Time time.Time
+	// the actual data of the text or file. if its a directory it will be set to the path of the dir when added to the db
+	Data []byte
 }
 
 func NewTextEntry() Entry {
 	return Entry{
 		Type: TYPE_TEXT,
-		Date: time.Now(),
+		Time: time.Now(),
 	}
 }
 
 func NewFsEntry(path string, entryType int) Entry {
 	return Entry{
 		Filename: filepath.Base(path),
-		Date:     time.Now(),
+		Time:     time.Now(),
 		Type:     entryType,
 	}
 }
@@ -83,14 +85,18 @@ func makeId(fmt string) string {
 	return builder.String()
 }
 
-func validateCacheDir(filename string) string {
+func GetNclipDbDir() string {
 	cacheDir, err := os.UserCacheDir()
 
 	if err != nil {
 		return ""
 	}
 
-	cacheDir = filepath.Join(cacheDir, "nclipdb")
+	return filepath.Join(cacheDir, "nclipdb")
+}
+
+func validateCacheDir(filename string) string {
+	cacheDir := GetNclipDbDir()
 
 	os.Mkdir(cacheDir, os.ModePerm)
 
@@ -139,6 +145,8 @@ func (entry *Entry) Save(data []byte) error {
 
 	fullPath := validateCacheDir(filename)
 
+	var err error
+
 	if entry.Type == TYPE_DIR {
 		path := string(data)
 
@@ -148,22 +156,21 @@ func (entry *Entry) Save(data []byte) error {
 
 		err := copyDir(path, fullPath)
 
+		data = []byte(fullPath)
+
 		if err != nil {
 			return err
 		}
 
 	} else if entry.Type == TYPE_FILE {
-		contents, err := os.ReadFile(string(data))
+		data, err = os.ReadFile(string(data))
 
 		if err != nil {
 			return err
 		}
-
-		os.WriteFile(fullPath, contents, os.ModePerm)
-
-	} else {
-		os.WriteFile(fullPath, data, os.ModePerm)
 	}
+
+	entry.Data = data
 
 	jsonData, err := json.Marshal(entry)
 
@@ -171,5 +178,5 @@ func (entry *Entry) Save(data []byte) error {
 		return err
 	}
 
-	return os.WriteFile(fullPath+".clip_entry", jsonData, os.ModePerm)
+	return os.WriteFile(fullPath+NCLIP_ENTRY_EXT, jsonData, os.ModePerm)
 }
