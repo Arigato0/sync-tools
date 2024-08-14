@@ -91,21 +91,29 @@ func NewCommandHandler() *CommandHandler {
 	return &handler
 }
 
-func ArgtToString(argt int) string {
+func ArgtToString(argt int, colored bool) string {
+	var out string
+
 	switch argt {
 	case ARGT_ANY:
-		return "any"
+		out = "any"
 	case ARGT_BOOL:
-		return "true|false"
+		out = "true|false"
 	case ARGT_STRING:
-		return "string"
+		out = "string"
 	case ARGT_INT:
-		return "integer"
+		out = "integer"
 	case ARGT_ARRAY:
-		return "string..."
+		out = "string..."
 	default:
-		return "Unknown"
+		out = "Unknown"
 	}
+
+	if colored {
+		out = MAGENTA + out + _RESET
+	}
+
+	return out
 }
 
 func GetFormattedArgt(argTypes []int, minimum int) string {
@@ -116,7 +124,7 @@ func GetFormattedArgt(argTypes []int, minimum int) string {
 	endByte := '>'
 
 	for i, argt := range argTypes {
-		toStr := ArgtToString(argt)
+		toStr := ArgtToString(argt, true)
 
 		if i >= minimum {
 			startByte = '|'
@@ -137,10 +145,11 @@ func CommandString(name string, cmd *Command) string {
 	aliasStr := ""
 
 	if cmd.Alias != "" {
-		aliasStr = cmd.Alias + " | "
+		aliasStr = ColorAs(BLUE, cmd.Alias) + " | "
 	}
+
 	return fmt.Sprintf("%s%s: %s\n\tUsage: %s %s",
-		aliasStr, name, cmd.Description, name, GetFormattedArgt(cmd.ArgTypes, cmd.MinimumArgs))
+		aliasStr, ColorAs(BLUE, name), cmd.Description, name, GetFormattedArgt(cmd.ArgTypes, cmd.MinimumArgs))
 }
 
 func (handler *CommandHandler) ShowHelp() {
