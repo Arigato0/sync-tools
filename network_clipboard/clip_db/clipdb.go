@@ -75,7 +75,7 @@ func makeId(fmt string) string {
 
 	for _, c := range fmt {
 		if c == 'x' {
-			value := byte(randRange(48, 57))
+			value := byte(randRange('0', '9'))
 			builder.WriteByte(value)
 		} else {
 			builder.WriteRune(c)

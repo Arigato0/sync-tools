@@ -34,7 +34,8 @@ func ColorAs(color string, str string) string {
 }
 
 type Context struct {
-	Args []any
+	Args    []any
+	Handler *CommandHandler
 }
 
 type CommandCallback func(ctx *Context)
@@ -54,37 +55,45 @@ type Command struct {
 type CommandHandler struct {
 	AppName      string
 	AppNameColor string
-	QuitCommand  string
 	cmdMap       map[string]Command
 	aliasMap     map[string]*Command
+	ShouldRun    bool
+}
+
+func helpCommand(ctx *Context) {
+	if len(ctx.Args) > 0 {
+		name := ctx.Args[0].(string)
+		cmd := ctx.Handler.FindCommand(name)
+
+		if cmd != nil {
+			fmt.Println(CommandString(name, cmd))
+			return
+		}
+	}
+
+	ctx.Handler.ShowHelp()
+
+	return
 }
 
 func NewCommandHandler() *CommandHandler {
 	handler := CommandHandler{}
 
-	handler.QuitCommand = "quit"
 	handler.AppNameColor = GREEN
 	handler.cmdMap = make(map[string]Command)
 	handler.aliasMap = make(map[string]*Command)
+	handler.ShouldRun = true
 
 	handler.Register("help", Command{
 		Alias:       "h",
 		Description: "Displays a list of all commands or a single command if given as an argument",
 		ArgTypes:    []int{ARGT_STRING},
+		Callback:    helpCommand,
+	}).Register("quit", Command{
+		Alias:       "q",
+		Description: "quits the application",
 		Callback: func(ctx *Context) {
-			if len(ctx.Args) > 0 {
-				name := ctx.Args[0].(string)
-				cmd := handler.FindCommand(name)
-
-				if cmd != nil {
-					fmt.Println(CommandString(name, cmd))
-					return
-				}
-			}
-
-			handler.ShowHelp()
-
-			return
+			ctx.Handler.ShouldRun = false
 		},
 	})
 
@@ -179,6 +188,18 @@ func (handler *CommandHandler) FindCommand(name string) *Command {
 	return &cmd
 }
 
+func parseAny(value any) any {
+	strValue := value.(string)
+
+	if result, err := strconv.Atoi(strValue); err == nil {
+		return result
+	} else if result, err := strconv.ParseBool(strValue); err == nil {
+		return result
+	} else {
+		return strValue
+	}
+}
+
 func createArgs(args []string, cmd *Command) ([]any, error) {
 	out := make([]any, len(args))
 	argtLen := len(cmd.ArgTypes)
@@ -207,9 +228,9 @@ func createArgs(args []string, cmd *Command) ([]any, error) {
 			value, err = strconv.Atoi(arg)
 		case ARGT_BOOL:
 			value, err = strconv.ParseBool(arg)
-		case ARGT_STRING:
-			fallthrough
 		case ARGT_ANY:
+			value = parseAny(arg)
+		case ARGT_STRING:
 			fallthrough
 		default:
 			value = arg
@@ -253,7 +274,8 @@ func (handler *CommandHandler) Exec(args []string) error {
 	}
 
 	ctx := Context{
-		Args: finalArgs,
+		Args:    finalArgs,
+		Handler: handler,
 	}
 
 	cmd.Callback(&ctx)
@@ -327,10 +349,6 @@ func (handler *CommandHandler) ExecFromStdin() bool {
 	}
 
 	name = strings.Trim(name, "\n ")
-
-	if name == handler.QuitCommand {
-		return false
-	}
 
 	spaceIndex := strings.Index(name, " ")
 
